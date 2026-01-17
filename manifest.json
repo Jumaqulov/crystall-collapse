@@ -1,9 +1,11 @@
 {
-  "name": "Crystal Collapse",
-  "short_name": "Crystal",
-  "version": "0.0.0",
-  "description": "Kristallar bilan ajoyib mantiqiy o'yin. / A fascinating puzzle game with crystals.",
+  "name": "Crystal Puzzle: Collapse",
+  "short_name": "Collapse",
+  "version": "1.0.0",
+  "description": "High-dopamine block puzzle with rising junk rows and rewarded power-ups.",
   "start_url": "./index.html",
+  "scope": "./",
+  "lang": "uz",
   "display": "standalone",
   "background_color": "#0F051D",
   "theme_color": "#0F051D",
@@ -14,21 +16,32 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "categories": [
     "games",
     "puzzle",
-    "casual"
+    "casual",
+    "arcade"
   ],
   "i18n": {
+    "en": {
+      "name": "Crystal Puzzle: Collapse",
+      "description": "Survive rising junk rows, clear lines, and use rewarded power-ups."
+    },
     "uz": {
-      "name": "Kristal Pazl",
-      "description": "Kristallar bilan ajoyib mantiqiy o'yin."
+      "name": "Kristal Pazl: Kollaps",
+      "description": "Pastdan ko'tariladigan junk qatorlari, liniya tozalash va AD power-up'lar bilan o'yin."
     },
     "ru": {
-      "name": "Кристалл Пазл",
-      "description": "Увлекательная игра-головоломка с кристаллами."
+      "name": "Кристалл Пазл: Коллапс",
+      "description": "Очищайте линии, переживайте поднимающиеся ряды и активируйте вознаграждаемые усилители."
     }
   },
   "prefer_related_applications": false
