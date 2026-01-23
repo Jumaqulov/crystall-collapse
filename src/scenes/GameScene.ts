@@ -21,9 +21,9 @@ import { GameState } from "../state/GameState";
 type CellKey = string;
 
 type BubbleVisual = Phaser.GameObjects.Container & {
-    base: Phaser.GameObjects.Arc;
-    gloss: Phaser.GameObjects.Arc;
-    shade: Phaser.GameObjects.Arc;
+    base: Phaser.GameObjects.Arc;   // Asosiy shar (aylana)
+    gloss?: Phaser.GameObjects.Shape; // Yaltirash (ixtiyoriy)
+    shade?: Phaser.GameObjects.Shape; // Soya (ixtiyoriy)
     bubbleRadius: number;
     colorHex: HexColor;
 };
@@ -69,7 +69,7 @@ export class GameScene extends Phaser.Scene {
     private nextSlot?: Phaser.GameObjects.Arc;
     private nextLabel?: Phaser.GameObjects.Text;
     private swapGfx?: Phaser.GameObjects.Graphics;
-
+    private shooterBase!: Phaser.GameObjects.Container;
     private hud?: HUD;
 
     private nextBubble?: BubbleVisual;
@@ -142,6 +142,23 @@ export class GameScene extends Phaser.Scene {
 
         const dt = dtMs / 1000;
 
+        // PUSHKA AYLANTIRISH (YANGI)
+        if (this.input.activePointer && this.shooterBase) {
+            const p = this.input.activePointer;
+
+            // Shooter va Sichqoncha orasidagi burchak
+            const angle = Phaser.Math.Angle.Between(this.shooterX, this.shooterY, p.worldX, p.worldY);
+
+            // Burchakni cheklash (Pushka yerga qarab qolmasligi uchun)
+            // -170 gradusdan -10 gradusgacha
+            const minAngle = Phaser.Math.DegToRad(-170);
+            const maxAngle = Phaser.Math.DegToRad(-10);
+            const clampedAngle = Phaser.Math.Clamp(angle, minAngle, maxAngle);
+
+            // Grafikani burish (+90 gradus qo'shamiz, chunki chizganimizda u tepaga qarab turibdi)
+            this.shooterBase.setRotation(clampedAngle + Math.PI / 2);
+        }
+
         // Update aim line when no projectile
         if (!this.projectile?.active) {
             this.aimLine?.setVisible(true);
@@ -192,68 +209,51 @@ export class GameScene extends Phaser.Scene {
     private drawBackdrop() {
         const gfx = this.add.graphics();
 
-        // Background gradient
-        gfx.fillGradientStyle(
-            hexTo0x(Colors.ui.background),
-            hexTo0x(Colors.ui.background),
-            hexTo0x(Colors.ui.backgroundDeep),
-            hexTo0x(Colors.ui.backgroundDeep),
-            1
-        );
+        // 1. Umumiy Fon (Och binafsha)
+        gfx.fillStyle(hexTo0x(Colors.ui.background));
         gfx.fillRect(0, 0, GAME.width, GAME.height);
 
-        // Subtle bubble rings for texture
-        gfx.lineStyle(2, hexTo0x(Colors.ui.textSecondary), 0.07);
-        const rings = [
-            { x: 90, y: 260, r: 64 },
-            { x: 620, y: 220, r: 48 },
-            { x: 580, y: 700, r: 86 },
-            { x: 130, y: 860, r: 52 },
-        ];
-        for (const ring of rings) {
-            gfx.strokeCircle(ring.x, ring.y, ring.r);
-        }
+        // 2. O'yin maydoni (Markaziy qism biroz ochroq)
+        // Maqsadli rasmda o'yin maydoni ajralib turadi
+        const panelW = 580; // Kengroq qildim
+        const panelX = (GAME.width - panelW) / 2;
 
-        // Playfield panel - Shifted left to make room for sidebar
-        const barH = 96;
-        const panelTop = barH + 14;
-        const panelBottom = GAME.height - 18;
+        // Chap va O'ng devorlar (To'qroq rangda)
+        gfx.fillStyle(0x0F172A, 0.5);
+        gfx.fillRect(0, 0, panelX, GAME.height);
+        gfx.fillRect(panelX + panelW, 0, panelX, GAME.height);
 
-        // We need space for 10 cols * 48px = ~480-500px content
-        // Plus padding (12px inset * 2). Let's make panel width 540px
-        const panelW = 540;
-        const panelH = panelBottom - panelTop;
+        // Devor chizig'i
+        gfx.lineStyle(4, 0x6A80B8, 1);
+        gfx.beginPath();
+        gfx.moveTo(panelX, 0);
+        gfx.lineTo(panelX, GAME.height);
+        gfx.moveTo(panelX + panelW, 0);
+        gfx.lineTo(panelX + panelW, GAME.height);
+        gfx.strokePath();
 
-        // Left align with small margin
-        const panelX = 20;
-        const panelY = panelTop;
-        const innerInset = 16;
-
-        this.playfieldLeft = panelX + innerInset;
-        this.playfieldRight = panelX + panelW - innerInset;
-        this.playfieldTop = panelY + innerInset;
-        this.playfieldBottom = panelY + panelH - innerInset;
+        // O'yin maydoni chegaralarini yangilash
+        this.playfieldLeft = panelX + 18; // Biroz ichkariga
+        this.playfieldRight = panelX + panelW - 18;
+        this.playfieldTop = 140;
+        this.playfieldBottom = GAME.height - 18;
         this.gridTopY = this.playfieldTop;
 
-        gfx.fillStyle(0x000000, 0.26);
-        gfx.fillRoundedRect(panelX + 6, panelY + 10, panelW, panelH, 28);
-
-        gfx.fillStyle(hexTo0x(Colors.ui.playfield), 1);
-        gfx.fillRoundedRect(panelX, panelY, panelW, panelH, 28);
-
-        // Subtle inner highlight (avoid visible "box")
-        gfx.fillStyle(0xffffff, 0.04);
-        gfx.fillRoundedRect(panelX + 14, panelY + 12, panelW - 28, 6, 4);
-
-        gfx.lineStyle(3, hexTo0x(Colors.ui.playfieldBorder), 0.95);
-        gfx.strokeRoundedRect(panelX, panelY, panelW, panelH, 28);
-
-        gfx.lineStyle(2, 0xffffff, 0.16);
-        gfx.strokeRoundedRect(panelX + 6, panelY + 6, panelW - 12, panelH - 12, 24);
-        gfx.lineStyle(2, 0x000000, 0.25);
-        gfx.strokeRoundedRect(panelX + 10, panelY + 10, panelW - 20, panelH - 20, 22);
-
         gfx.setDepth(-100);
+
+        const patternGfx = this.add.graphics();
+        patternGfx.setDepth(-99); // Asosiy fondan biroz tepada
+
+        // O'yin maydoni ichiga tasodifiy doiralar chizamiz
+        patternGfx.lineStyle(2, 0xFFFFFF, 0.05); // Juda xira oq chiziq
+
+        for (let i = 0; i < 15; i++) {
+            const r = Phaser.Math.Between(30, 80); // Har xil kattalikda
+            const x = Phaser.Math.Between(this.playfieldLeft + 50, this.playfieldRight - 50);
+            const y = Phaser.Math.Between(this.playfieldTop + 50, this.playfieldBottom - 200);
+
+            patternGfx.strokeCircle(x, y, r);
+        }
     }
 
     private setupGridDimensions() {
@@ -269,54 +269,74 @@ export class GameScene extends Phaser.Scene {
     private setupShooter() {
         const pfCenter = (this.playfieldLeft + this.playfieldRight) / 2;
         this.shooterX = pfCenter;
-        this.shooterY = GAME.height - 170;
+        this.shooterY = GAME.height - 130; // Biroz ko'taramiz
 
-        // Shooter base + ring (3D)
-        const baseShadow = this.add.circle(this.shooterX + 6, this.shooterY + 44, 56, 0x000000, 0.28);
-        const base = this.add.circle(this.shooterX, this.shooterY + 36, 54, hexTo0x(Colors.ui.panel));
-        base.setStrokeStyle(3, hexTo0x(Colors.ui.playfieldBorder), 0.8);
-        const baseHighlight = this.add.circle(this.shooterX, this.shooterY + 30, 48, 0xffffff, 0.08);
+        // --- PUSHKA (CANNON) KONTEYNERI ---
+        this.shooterBase = this.add.container(this.shooterX, this.shooterY);
 
-        const shooterRingOuter = this.add
-            .circle(this.shooterX, this.shooterY, BUBBLES.radius + 18, 0x000000, 0.22)
-            .setStrokeStyle(3, 0xffffff, 0.55);
-        const shooterRingInner = this.add
-            .circle(this.shooterX, this.shooterY, BUBBLES.radius + 12, 0xffffff, 0.06)
-            .setStrokeStyle(2, 0x000000, 0.3);
+        const cannon = this.add.graphics();
 
-        baseShadow.setDepth(2);
-        base.setDepth(3);
-        baseHighlight.setDepth(4);
-        shooterRingOuter.setDepth(4);
-        shooterRingInner.setDepth(5);
+        // 1. Pushka Og'zi (Barrel) - To'q Metallik
+        // Uzuuun va ingichka bo'lishi kerak
+        cannon.fillStyle(0x2C3E50, 1); // Dark Gunmetal
+        cannon.lineStyle(2, 0x5D6D7E, 1); // Yaltiroq cheti
+        // (x, y, w, h, radius) - Markazdan tepaga qarab chizamiz
+        cannon.fillRoundedRect(-16, -70, 32, 80, 8);
+        cannon.strokeRoundedRect(-16, -70, 32, 80, 8);
 
-        // Aim line
+        // 2. Barrel Ichki qismi (Tirqish)
+        cannon.fillStyle(0x17202A, 1); // Deyarli qora
+        cannon.fillRoundedRect(-8, -65, 16, 40, 4);
+
+        // 3. Pushka Asosi (Outer Ring) - Yorqinroq Metall
+        cannon.fillStyle(0x34495E, 1);
+        cannon.fillCircle(0, 0, 42);
+        cannon.lineStyle(3, 0x85929E, 1); // Kumush hoshiya
+        cannon.strokeCircle(0, 0, 42);
+
+        // 4. Asosning Ichki qismi (Inner Ring) - Shisha effekt
+        cannon.fillStyle(0x1B2631, 1);
+        cannon.fillCircle(0, 0, 28);
+
+        // 5. Yorug'lik (Gloss)
+        cannon.fillStyle(0xFFFFFF, 0.1);
+        cannon.fillCircle(-10, -10, 15);
+
+        this.shooterBase.add(cannon);
+        this.shooterBase.setDepth(20); // Pufakchadan balandda tursin (muhim!)
+
+        // --- AIM LINE (Nishon) ---
         this.aimLine = this.add.graphics();
-        this.aimLine.setDepth(6);
+        this.aimLine.setDepth(5);
 
-        // Next bubble (loaded)
+        // --- NEXT BUBBLE (Otiladigan shar) ---
+        // Pufakcha pushkaning "Ichida" yoki "Ostida" paydo bo'lishi kerak
         this.nextColor = this.pickAvailableColor();
         this.nextBubble = this.makeBubbleVisual(this.shooterX, this.shooterY, this.nextColor, BUBBLES.radius);
-        this.nextBubble.setDepth(5);
+        this.nextBubble.setDepth(19); // Pushkadan biroz pastda (ichida turgandek ko'rinadi)
         this.bindSwapHandler(this.nextBubble);
         this.updateBombIndicator();
 
-        // Next preview slot (queued)
-        this.previewX = this.shooterX + 118;
-        this.previewY = this.shooterY + 6;
-        this.previewRadius = Math.round(BUBBLES.radius * 0.62);
+        // --- PREVIEW SLOT (Navbatdagi shar) ---
+        this.previewX = this.shooterX + 110;
+        this.previewY = this.shooterY + 20;
+        this.previewRadius = Math.round(BUBBLES.radius * 0.7);
 
-        this.nextSlot = this.add
-            .circle(this.previewX, this.previewY, this.previewRadius + 14, 0x000000, 0.25)
-            .setStrokeStyle(3, hexTo0x(Colors.ui.textPrimary), 0.5);
-        this.nextSlot.setDepth(4);
+        // Preview tagligi (Base)
+        const slotBase = this.add.graphics();
+        slotBase.fillStyle(0x000000, 0.3);
+        slotBase.fillCircle(this.previewX, this.previewY, this.previewRadius + 8);
+        slotBase.lineStyle(2, 0xFFFFFF, 0.2);
+        slotBase.strokeCircle(this.previewX, this.previewY, this.previewRadius + 8);
+        slotBase.setDepth(4);
+
+        // Swap belgisi (aylanadigan strelkalar)
+        this.drawSwapHint();
 
         this.queuedColor = this.pickAvailableColor(this.nextColor);
         this.queuedBubble = this.makeBubbleVisual(this.previewX, this.previewY, this.queuedColor, this.previewRadius);
         this.queuedBubble.setDepth(5);
 
-        this.drawSwapHint();
-        this.bindSwapHandler(this.nextSlot);
         this.bindSwapHandler(this.queuedBubble);
     }
 
@@ -550,111 +570,88 @@ export class GameScene extends Phaser.Scene {
     }
 
     private createBoosterButton(id: BoosterId, x: number, y: number, color: HexColor, label: string) {
-        const radius = 28; // Increased radius to match setupBoosters
+        const radius = 28;
         const container = this.add.container(x, y);
         const iconId: PhosphorIconId = id === "colorSwap" ? "swap" : id === "aimGuide" ? "aim" : "bomb";
 
-        // Enhanced shadow and depth
-        const shadow = this.add.circle(4, 8, radius + 4, 0x000000, 0.3);
-        const back = this.add.circle(0, 0, radius + 4, 0x000000, 0.4); // Darker border ring
+        // 1. Shadow (Tugma soyasi)
+        const shadow = this.add.circle(2, 4, radius + 2, 0x000000, 0.3);
 
-        // Main button body
-        const activeColor = hexTo0x(color);
-        const icon = this.add.circle(0, 0, radius, activeColor, 1);
+        // 2. Base (Asosiy rang)
+        const base = this.add.circle(0, 0, radius, hexTo0x(color));
+        // Cheti biroz ochroq
+        base.setStrokeStyle(2, 0xFFFFFF, 0.3);
 
-        // Gradient/lighting effects
-        const innerGlow = this.add.circle(-radius / 3, -radius / 3, radius, 0xffffff, 0.15); // Top-left highlight
-        const innerShade = this.add.circle(radius / 3, radius / 3, radius, 0x000000, 0.1); // Bottom-right shadow
+        // 3. Glass Effect (Tepasidagi yaltirash)
+        const gloss = this.add.ellipse(-radius * 0.3, -radius * 0.4, radius * 0.8, radius * 0.5, 0xFFFFFF, 0.2);
+        gloss.setRotation(Phaser.Math.DegToRad(-45));
 
-        // Glassy cap
-        const gloss = this.add.circle(0, -radius * 0.5, radius * 0.8, 0xffffff, 0.1);
-        gloss.setScale(1.2, 0.7);
-
-        // Icon
+        // 4. Icon (O'rtasidagi rasm)
         const glyph = this.add.image(0, 0, getPhosphorKey(iconId));
-        glyph.setDisplaySize(radius * 1.1, radius * 1.1);
-        glyph.setTint(0xffffff);
-        glyph.setAlpha(0.95);
+        glyph.setDisplaySize(32, 32);
+        glyph.setTint(0xFFFFFF); // Oq rangda
 
-        // Badge (count) - Positioned at top-right
+        // 5. Badge (Soni yozilgan qizil dumaloqcha)
         const badgeRadius = 10;
-        const badgeX = radius - 4;
-        const badgeY = -radius + 4;
-        const badge = this.add.circle(badgeX, badgeY, badgeRadius, 0xff3333, 1); // Red notification style
-        badge.setStrokeStyle(2, 0xffffff, 1);
+        const badgeX = radius - 5;
+        const badgeY = -radius + 5;
+
+        const badgeBg = this.add.circle(badgeX, badgeY, badgeRadius, 0xFF3B30); // Qizil
+        badgeBg.setStrokeStyle(2, 0xFFFFFF, 1);
 
         const count = this.add
             .text(badgeX, badgeY, String(GameState.boosters[id]), {
                 fontFamily: "Arial, sans-serif",
-                fontSize: "11px",
+                fontSize: "12px",
                 color: "#ffffff",
                 fontStyle: "bold",
             })
             .setOrigin(0.5);
 
-        // Label below button
+        // 6. Label (Tugma nomi)
         const text = this.add
-            .text(0, radius + 14, label, {
+            .text(0, radius + 18, label, {
                 fontFamily: "Arial, sans-serif",
                 fontSize: "11px",
-                color: Colors.ui.textPrimary, // e.g. white/light grey
+                color: Colors.ui.textPrimary,
                 fontStyle: "bold",
+                shadow: { offsetX: 0, offsetY: 1, color: "black", blur: 2, fill: true }
             })
             .setOrigin(0.5);
 
-        // Hover effect overlay (invisible by default)
-        const hover = this.add.circle(0, 0, radius, 0xffffff, 0.2);
+        // Hover effekti (Sichqoncha borganda yorishish)
+        const hover = this.add.circle(0, 0, radius, 0xFFFFFF, 0.2);
         hover.setVisible(false);
 
-        container.add([shadow, back, icon, innerGlow, innerShade, gloss, glyph, text, badge, count, hover]);
-        container.setSize(radius * 2 + 10, radius * 2 + 10);
+        container.add([shadow, base, gloss, glyph, text, badgeBg, count, hover]);
 
-        // Improve interaction area
+        // Interaktivlik
         const hitArea = new Phaser.Geom.Circle(0, 0, radius + 5);
         container.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
-
         if (container.input) container.input.cursor = "pointer";
 
-        container.on(
-            "pointerover",
-            () => {
-                hover.setVisible(true);
-                this.tweens.add({
-                    targets: container,
-                    scale: 1.05,
-                    duration: 100,
-                    ease: "Back.easeOut"
-                });
-            }
-        );
+        // Bosish va Hover hodisalari
+        container.on("pointerover", () => {
+            hover.setVisible(true);
+            this.tweens.add({ targets: container, scale: 1.1, duration: 100 });
+        });
 
-        container.on(
-            "pointerout",
-            () => {
-                hover.setVisible(false);
-                this.tweens.add({
-                    targets: container,
-                    scale: 1,
-                    duration: 100,
-                    ease: "Back.easeOut"
-                });
-            }
-        );
+        container.on("pointerout", () => {
+            hover.setVisible(false);
+            this.tweens.add({ targets: container, scale: 1, duration: 100 });
+        });
 
-        container.on(
-            "pointerdown",
-            (
-                _pointer: Phaser.Input.Pointer,
-                _localX: number,
-                _localY: number,
-                event: Phaser.Types.Input.EventData
-            ) => {
-                event.stopPropagation();
-                this.useBooster(id);
-            }
-        );
-
-        container.setDepth(8);
+        container.on("pointerdown", (p: any, lx: number, ly: number, event: any) => {
+            event.stopPropagation();
+            this.useBooster(id);
+            // Bosish animatsiyasi
+            this.tweens.add({
+                targets: container,
+                scale: 0.9,
+                duration: 50,
+                yoyo: true
+            });
+        });
 
         this.boosterUI[id] = container;
         this.boosterCountText[id] = count;
@@ -751,8 +748,14 @@ export class GameScene extends Phaser.Scene {
                 break;
             }
 
-            if (i % 2 === 0) {
-                this.aimLine.fillCircle(x, y, this.aimGuideActive ? 3.5 : 3);
+            if (i % 3 === 0) { // Siyrakroq nuqtalar
+                // Nuqta orqasi (Border effekti uchun)
+                this.aimLine.fillStyle(hexTo0x(Colors.bubbles.blue), 1);
+                this.aimLine.fillCircle(x, y, 5);
+
+                // Nuqta ichi (Oq)
+                this.aimLine.fillStyle(0xffffff, 1);
+                this.aimLine.fillCircle(x, y, 3);
             }
         }
 
@@ -1382,26 +1385,29 @@ export class GameScene extends Phaser.Scene {
     private makeBubbleVisual(x: number, y: number, colorHex: HexColor, radius: number): BubbleVisual {
         const bubble = this.add.container(x, y) as BubbleVisual;
 
-        const shadow = this.add.circle(4, 7, radius * 1.03, 0x000000, 0.3);
+        // 1. Soya
+        const shadow = this.add.circle(2, 4, radius, 0x000000, 0.2);
+
+        // 2. Asosiy Shar (Bu "base" bo'ladi)
         const base = this.add.circle(0, 0, radius, hexTo0x(colorHex));
-        base.setStrokeStyle(2, 0xffffff, 0.25);
+        base.setStrokeStyle(1, 0x000000, 0.1);
 
-        const innerShade = this.add.circle(radius * 0.22, radius * 0.3, radius * 0.92, 0x000000, 0.22);
-        const rim = this.add.circle(0, 0, radius * 0.98, 0xffffff, 0);
-        rim.setStrokeStyle(2, 0xffffff, 0.15);
-
-        const gloss = this.add.circle(-radius * 0.34, -radius * 0.36, radius * 0.34, 0xffffff, 0.4);
-        const glossSoft = this.add.circle(-radius * 0.12, -radius * 0.08, radius * 0.7, 0xffffff, 0.04);
-        const sparkle = this.add.circle(-radius * 0.12, -radius * 0.56, Math.max(2, radius * 0.12), 0xffffff, 0.55);
-
+        // 3. Ichki Soya
+        const innerShade = this.add.circle(radius * 0.15, radius * 0.15, radius * 0.85, 0x000000, 0.15);
         innerShade.setBlendMode(Phaser.BlendModes.MULTIPLY);
-        glossSoft.setBlendMode(Phaser.BlendModes.SCREEN);
-        gloss.setBlendMode(Phaser.BlendModes.SCREEN);
-        sparkle.setBlendMode(Phaser.BlendModes.SCREEN);
 
-        bubble.add([shadow, base, innerShade, rim, glossSoft, gloss, sparkle]);
+        // 4. Yaltirash (Gloss)
+        const gloss = this.add.ellipse(-radius * 0.35, -radius * 0.35, radius * 0.6, radius * 0.4, 0xffffff, 0.7);
+        gloss.setRotation(Phaser.Math.DegToRad(-45));
+
+        const sparkle = this.add.circle(-radius * 0.45, -radius * 0.45, radius * 0.15, 0xffffff, 0.9);
+
+        // Hamma elementlarni konteynerga qo'shamiz
+        bubble.add([shadow, base, innerShade, gloss, sparkle]);
         bubble.setSize(radius * 2, radius * 2);
 
+        // !!! ENG MUHIM QISM: Xususiyatlarni biriktirish !!!
+        // Bu bo'lmasa "Cannot read properties of undefined" beradi
         bubble.base = base;
         bubble.gloss = gloss;
         bubble.shade = innerShade;
@@ -1412,13 +1418,25 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setBubbleColor(bubble: BubbleVisual, colorHex: HexColor) {
+        // 1. Xavfsizlik tekshiruvi: Agar bubble yoki uning asosi yo'q bo'lsa, kod sinmasin
+        if (!bubble || !bubble.base) return;
+
+        // 2. Rangi o'zgartirish
+        // DİQQAT: Biz "Arc" (Circle) ishlatganimiz uchun "clear()" kerak emas!
+        // Shunchaki setFillStyle ishlatamiz.
         bubble.base.setFillStyle(hexTo0x(colorHex));
+
+        // 3. Kodni yangilash
         bubble.colorHex = colorHex;
     }
 
     private updateBombIndicator() {
-        if (!this.nextBubble) return;
+        // Agar bubble yoki uning asosi (base) yo'q bo'lsa, to'xtasin
+        if (!this.nextBubble || !this.nextBubble.base) return;
+
         const strokeColor = this.bombActive ? Colors.ui.warning : Colors.ui.textPrimary;
+
+        // Bu yerda xatolik chiqmaydi, chunki yuqorida tekshirdik
         this.nextBubble.base.setStrokeStyle(2, hexTo0x(strokeColor), this.bombActive ? 0.9 : 0.25);
     }
 }

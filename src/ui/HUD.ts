@@ -1,9 +1,4 @@
 // src/ui/HUD.ts
-// Minimal HUD (Top bar):
-// - Level, Score, Shots
-// - Update methods so GameScene can refresh values
-// Later: add booster buttons + settings/pause.
-
 import Phaser from "phaser";
 import { Colors, hexTo0x } from "../config/colors";
 import { GAME } from "../config/constants";
@@ -16,7 +11,6 @@ export type HUDInitData = {
 
 export class HUD extends Phaser.GameObjects.Container {
     private bg: Phaser.GameObjects.Graphics;
-
     private levelText: Phaser.GameObjects.Text;
     private scoreText: Phaser.GameObjects.Text;
     private shotsText: Phaser.GameObjects.Text;
@@ -24,61 +18,63 @@ export class HUD extends Phaser.GameObjects.Container {
     constructor(scene: Phaser.Scene, data: HUDInitData) {
         super(scene, 0, 0);
 
-        const barH = 96;
-        const barMargin = 18;
+        const barH = 80; // Biroz ixchamroq qilamiz
+        const barMargin = 14;
         const barX = barMargin;
-        const barY = 10;
+        const barY = 8;
         const barW = GAME.width - barMargin * 2;
-        const barHInner = barH - 16;
+        const barHInner = barH - 10;
 
         this.bg = scene.add.graphics();
-        // Shadow
-        this.bg.fillStyle(0x000000, 0.28);
-        this.bg.fillRoundedRect(barX + 4, barY + 6, barW, barHInner, 18);
 
-        // Base panel
-        this.bg.fillStyle(hexTo0x(Colors.ui.panel), 0.96);
-        this.bg.fillRoundedRect(barX, barY, barW, barHInner, 18);
+        // 1. Shadow (Orqa soya)
+        this.bg.fillStyle(0x000000, 0.4);
+        this.bg.fillRoundedRect(barX + 4, barY + 6, barW, barHInner, 16);
 
-        // Top highlight / bottom shade
-        this.bg.fillStyle(0xffffff, 0.08);
-        this.bg.fillRoundedRect(barX + 10, barY + 8, barW - 20, 10, 6);
-        this.bg.fillStyle(0x000000, 0.18);
-        this.bg.fillRoundedRect(barX + 10, barY + barHInner - 18, barW - 20, 12, 6);
+        // 2. Glass Panel (To'q va Shaffof)
+        // Yorqin ko'k emas, balki "To'q Dengiz" rangi
+        this.bg.fillStyle(0x1A365D, 0.85); // Dark Blue, 85% opacity
+        this.bg.fillRoundedRect(barX, barY, barW, barHInner, 16);
 
-        // Rim
-        this.bg.lineStyle(2, hexTo0x(Colors.ui.playfieldBorder), 0.85);
-        this.bg.strokeRoundedRect(barX, barY, barW, barHInner, 18);
-        this.bg.lineStyle(2, 0xffffff, 0.12);
-        this.bg.strokeRoundedRect(barX + 4, barY + 4, barW - 8, barHInner - 8, 14);
+        // 3. Highlight (Tepa qismidagi yaltirash)
+        this.bg.fillStyle(0xFFFFFF, 0.1);
+        this.bg.fillRoundedRect(barX, barY, barW, barHInner / 2, { tl: 16, tr: 16, bl: 0, br: 0 });
 
+        // 4. Border (Ingichka yaltiroq hoshiya)
+        this.bg.lineStyle(2, 0x4AA6EB, 0.5); // Och ko'k hoshiya
+        this.bg.strokeRoundedRect(barX, barY, barW, barHInner, 16);
+
+        // FONTLAR (Zamonaviyroq)
+        const textStyle = {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "24px",
+            color: "#E2E8F0", // Oqish-kulrang (Yumshoqroq)
+            fontStyle: "bold"
+        };
+
+        // Level
         this.levelText = scene.add
-            .text(barX + 18, barY + 18, `Level: ${data.level}`, {
-                fontFamily: "Arial, sans-serif",
-                fontSize: "28px",
-                color: Colors.ui.textPrimary,
-            })
+            .text(barX + 20, barY + 22, `LEVEL ${data.level}`, textStyle)
             .setOrigin(0, 0);
-        this.levelText.setShadow(0, 2, Colors.ui.shadow, 4, true, true);
 
+        // Score (Katta va Oltin rangda)
         this.scoreText = scene.add
-            .text(GAME.width / 2, barY + 18, `Score: ${data.score}`, {
+            .text(GAME.width / 2, barY + 22, `${data.score}`, {
                 fontFamily: "Arial, sans-serif",
-                fontSize: "28px",
-                color: Colors.ui.reward,
+                fontSize: "32px",
+                color: "#FCD34D", // Amber-Gold
                 fontStyle: "bold",
+                shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 4, fill: true }
             })
             .setOrigin(0.5, 0);
-        this.scoreText.setShadow(0, 2, Colors.ui.shadow, 4, true, true);
 
+        // Shots
         this.shotsText = scene.add
-            .text(barX + barW - 18, barY + 18, `Shots: ${data.shots}`, {
-                fontFamily: "Arial, sans-serif",
-                fontSize: "28px",
-                color: Colors.ui.textPrimary,
+            .text(barX + barW - 20, barY + 22, `${data.shots} LEFT`, {
+                ...textStyle,
+                color: "#F87171" // Och qizil (Ogohlantirish rangi)
             })
             .setOrigin(1, 0);
-        this.shotsText.setShadow(0, 2, Colors.ui.shadow, 4, true, true);
 
         this.add([this.bg, this.levelText, this.scoreText, this.shotsText]);
 
@@ -97,8 +93,7 @@ export class HUD extends Phaser.GameObjects.Container {
         this.shotsText.setText(`Shots: ${shots}`);
     }
 
-    // Convenience
-    setAll(data: Partial<HUDInitData>) {
+    refreshValues(data: Partial<HUDInitData>) {
         if (data.level !== undefined) this.setLevel(data.level);
         if (data.score !== undefined) this.setScore(data.score);
         if (data.shots !== undefined) this.setShots(data.shots);

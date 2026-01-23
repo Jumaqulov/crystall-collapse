@@ -35,9 +35,11 @@ export class Button extends Phaser.GameObjects.Container {
         this.disabled = !!options.disabled;
 
         // Background + depth
+        // 1. Shadow / Glow
         this.shadow = scene.add
-            .rectangle(0, 6, options.width, options.height, 0x000000, 0.28);
+            .rectangle(0, 4, options.width, options.height, 0x000000, 0.4);
 
+        // 2. Main Body (Gradient simulation via tint or just solid neon)
         this.bg = scene.add
             .rectangle(
                 0,
@@ -47,16 +49,18 @@ export class Button extends Phaser.GameObjects.Container {
                 hexTo0x(
                     this.disabled ? Colors.ui.disabled : Colors.ui.ctaPrimaryTop
                 )
-            )
-            .setStrokeStyle(
-                3,
-                hexTo0x(
-                    this.disabled ? Colors.ui.disabled : Colors.ui.ctaPrimaryBottom
-                )
             );
 
+        // Neon Border
+        this.bg.setStrokeStyle(
+            2,
+            0xffffff,
+            this.disabled ? 0.2 : 0.8
+        );
+
+        // 3. Glass Gloss (Top half)
         this.gloss = scene.add
-            .rectangle(0, -options.height / 2 + 10, options.width - 12, 10, 0xffffff, 0.14);
+            .rectangle(0, -options.height / 4, options.width, options.height / 2, 0xffffff, 0.1);
 
         // Text
         this.label = scene.add
@@ -82,12 +86,26 @@ export class Button extends Phaser.GameObjects.Container {
     private setupInteractions(onClick: () => void) {
         this.on("pointerover", () => {
             this.bg.setFillStyle(hexTo0x(Colors.ui.ctaSecondary));
-            this.gloss.setFillStyle(0xffffff, 0.2);
+            this.gloss.setFillStyle(0xffffff, 0.25);
+            // Add scale punch
+            this.scene.tweens.add({
+                targets: this,
+                scale: 1.05,
+                duration: 100,
+                ease: "Back.Out"
+            });
         });
 
         this.on("pointerout", () => {
             this.bg.setFillStyle(hexTo0x(Colors.ui.ctaPrimaryTop));
-            this.gloss.setFillStyle(0xffffff, 0.14);
+            this.gloss.setFillStyle(0xffffff, 0.1);
+
+            this.scene.tweens.add({
+                targets: this,
+                scale: 1,
+                duration: 100,
+                ease: "Back.Out"
+            });
         });
 
         this.on("pointerdown", () => {

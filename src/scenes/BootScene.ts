@@ -11,13 +11,17 @@ export class BootScene extends Phaser.Scene {
 
     preload() {
         this.load.setPath("assets/audio");
-        this.load.audio("bgm_main", "bgm_main.mp3");
-        this.load.audio("sfx_shoot", "shoot.mp3");
-        this.load.audio("sfx_pop", "pop.mp3");
-        this.load.audio("sfx_bounce", "bounce.mp3");
-        this.load.audio("sfx_win", "win.mp3");
-        this.load.audio("sfx_lose", "lose.mp3");
-        this.load.audio("sfx_click", "click.mp3");
+
+        // Hozircha audio fayllar yo'q, shuning uchun ularni yuklamaymiz.
+        // Fayllarni topganingizda bu qatorlarni "comment"dan chiqarasiz.
+
+        // this.load.audio("bgm_main", "bgm_main.mp3");
+        // this.load.audio("sfx_shoot", "shoot.mp3");
+        // this.load.audio("sfx_pop", "pop.mp3");
+        // this.load.audio("sfx_bounce", "bounce.mp3");
+        // this.load.audio("sfx_win", "win.mp3");
+        // this.load.audio("sfx_lose", "lose.mp3");
+        // this.load.audio("sfx_click", "click.mp3");
     }
 
     async create() {
@@ -27,6 +31,7 @@ export class BootScene extends Phaser.Scene {
         // Ensure consistent scaling on resize
         this.setupScaleHandlers();
 
+        // Audio contextni faollashtirish (kelajak uchun)
         this.input.once("pointerdown", () => {
             if (this.sound instanceof Phaser.Sound.WebAudioSoundManager) {
                 const ctx = this.sound.context;
@@ -36,7 +41,6 @@ export class BootScene extends Phaser.Scene {
             }
         });
 
-        // Minimal "Loading" text (we'll do a richer Preload later if needed)
         const loadingText = this.add
             .text(GAME.width / 2, GAME.height / 2, "Loading...", {
                 fontFamily: "Arial, sans-serif",
@@ -45,7 +49,7 @@ export class BootScene extends Phaser.Scene {
             })
             .setOrigin(0.5);
 
-        // Init Yandex SDK (safe to fail in local dev)
+        // Yandex SDK (lokal muhitda xatolik bersa ham davom etadi)
         const inFrame = (() => {
             try {
                 return window.self !== window.top;
@@ -60,11 +64,10 @@ export class BootScene extends Phaser.Scene {
                 if (DEBUG.logSdk) console.log("[BootScene] YandexSDK initialized");
             } catch (e) {
                 if (DEBUG.logSdk) console.warn("[BootScene] YandexSDK init failed:", e);
-                // Continue anyway (local dev/offline)
             }
         }
 
-        // Small delay to avoid abrupt scene change
+        // Kichik pauza va MenuScene'ga o'tish
         this.time.delayedCall(150, () => {
             loadingText.destroy();
             this.scene.start("MenuScene");
@@ -72,11 +75,8 @@ export class BootScene extends Phaser.Scene {
     }
 
     private setupScaleHandlers() {
-        // Fit scale already set in config; here we just react to resize
         const scale = this.scale;
-
         const onResize = () => {
-            // Phaser handles FIT scaling; we can still keep camera centered
             this.cameras.main.centerOn(GAME.width / 2, GAME.height / 2);
         };
 
@@ -84,8 +84,6 @@ export class BootScene extends Phaser.Scene {
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             scale.off(Phaser.Scale.Events.RESIZE, onResize);
         });
-
-        // Initial call
         onResize();
     }
 }
