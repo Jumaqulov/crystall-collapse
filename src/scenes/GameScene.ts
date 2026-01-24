@@ -17,6 +17,8 @@ import { LevelManager } from "../systems/LevelManager";
 import { ShootingSystem } from "../systems/ShootingSystem";
 import { AudioManager } from "../systems/AudioManager";
 import { GameState } from "../state/GameState";
+import { OutOfShotsPopup } from "../ui/OutOfShotsPopup";
+import { YandexSDK } from "../services/YandexSDK";
 
 type CellKey = string;
 
@@ -130,6 +132,7 @@ export class GameScene extends Phaser.Scene {
         this.setupInput();
 
         this.drawHUD();
+
     }
 
     update(_t: number, dtMs: number) {
@@ -1132,8 +1135,35 @@ export class GameScene extends Phaser.Scene {
 
         // Lose check (minimal): if shots finished, show overlay and return menu
         if (this.shotsLeft <= 0) {
-            this.showLosePopup();
+            this.handleOutOfShots();
         }
+    }
+
+    private handleOutOfShots() {
+        this.gameOver = true; // Pause input
+        this.aimLine?.setVisible(false);
+        this.hideAimGhost();
+
+        const popup = new OutOfShotsPopup(
+            this,
+            () => {
+                // On Watch Ad
+                YandexSDK.showRewarded().then((success) => {
+                    if (success) {
+                        this.shotsLeft += 5;
+                        this.hud?.setShots(this.shotsLeft);
+                        this.gameOver = false; // Resume
+                    } else {
+                        this.showLosePopup();
+                    }
+                });
+            },
+            () => {
+                // On Give Up
+                this.showLosePopup();
+            }
+        );
+        this.add.existing(popup);
     }
 
     // -------------------------
