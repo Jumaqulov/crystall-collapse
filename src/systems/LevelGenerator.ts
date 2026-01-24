@@ -1,5 +1,5 @@
 import { HexColor } from "../config/colors";
-import { InitialBubble } from "./LevelManager";
+import { InitialBubble } from "../types/LevelTypes";
 
 export class LevelGenerator {
     /**
@@ -32,7 +32,7 @@ export class LevelGenerator {
         for (let r = 0; r < rows; r++) {
             // Change color every 2 rows for thicker stripes, or 1 for thin
             const colorIdx = Math.floor(r / 2) % colors.length;
-            const colorHex = colors[colorIdx];
+            const colorHex = colors[colorIdx]!;
             for (let c = 0; c < cols; c++) {
                 bubbles.push({ r, c, colorHex });
             }
@@ -46,7 +46,7 @@ export class LevelGenerator {
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const colorIdx = c % colors.length;
-                const colorHex = colors[colorIdx];
+                const colorHex = colors[colorIdx]!;
                 bubbles.push({ r, c, colorHex });
             }
         }
@@ -60,7 +60,7 @@ export class LevelGenerator {
             for (let c = 0; c < cols; c++) {
                 // (r + c) % len gives a diagonal-ish checker
                 const colorIdx = (r + c) % colors.length;
-                const colorHex = colors[colorIdx];
+                const colorHex = colors[colorIdx]!;
                 bubbles.push({ r, c, colorHex });
             }
         }
@@ -84,7 +84,7 @@ export class LevelGenerator {
             centers.push({
                 r: Math.floor(seededRandom(seed + i) * rows),
                 c: Math.floor(seededRandom(seed + i + 100) * cols),
-                color: colors[i % colors.length]
+                color: colors[i % colors.length]!
             });
         }
 
@@ -92,7 +92,7 @@ export class LevelGenerator {
             for (let c = 0; c < cols; c++) {
                 // Find closest center
                 let minDist = Infinity;
-                let bestColor = colors[0];
+                let bestColor = colors[0]!;
 
                 for (const center of centers) {
                     const dist = Math.sqrt((r - center.r) ** 2 + (c - center.c) ** 2);
@@ -119,7 +119,7 @@ export class LevelGenerator {
                 // Rings based on distance
                 const ringIndex = Math.floor(dist / 2);
                 const colorIdx = ringIndex % colors.length;
-                const colorHex = colors[colorIdx];
+                const colorHex = colors[colorIdx]!;
                 bubbles.push({ r, c, colorHex });
             }
         }
