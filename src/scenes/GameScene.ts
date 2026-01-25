@@ -80,7 +80,7 @@ export class GameScene extends Phaser.Scene {
     private queuedColor: HexColor = Colors.bubbles.blue;
 
     private projectile: Projectile | null = null;
-    private levelTargetScore = 2000; // Default
+    private levelTargetScore = 5000; // Increased Default
     private shotsLeft = 0;
     private level = 1;
     private score = 0;
@@ -107,6 +107,9 @@ export class GameScene extends Phaser.Scene {
     private boosterBar?: Phaser.GameObjects.Graphics;
     private boosterUI: Partial<Record<BoosterId, Phaser.GameObjects.Container>> = {};
     private boosterCountText: Partial<Record<BoosterId, Phaser.GameObjects.Text>> = {};
+
+    private comboCount = 0;
+    private levelStartScore = 0;
 
     constructor() {
         super({ key: "GameScene" });
@@ -745,7 +748,8 @@ export class GameScene extends Phaser.Scene {
             level: this.level,
             score: this.score,
             shots: this.shotsLeft,
-            targetScore: this.levelTargetScore // <-- MUHIM
+            targetScore: this.levelTargetScore,
+            startScore: this.levelStartScore // Pass start score
         });
         this.hud.setDepth(10);
     }
@@ -910,9 +914,26 @@ export class GameScene extends Phaser.Scene {
         this.score += safe;
         this.hud?.setScore(this.score);
         this.hud?.setScore(this.score);
+
+        // LEVEL WIN CHECK
+        if (this.score >= this.levelTargetScore) {
+            this.handleLevelWin();
+            return;
+        }
+
         if (x === undefined || y === undefined) return;
 
         this.effectManager.spawnFloatingText(x, y, `+${safe}`, 0xffd700);
+    }
+
+    private handleLevelWin() {
+        this.audio.play("sfx_win");
+
+        // Simple difficulty progression
+        this.level++;
+        this.levelTargetScore = Math.floor(this.levelTargetScore * 1.25); // Increase target by 25%
+
+        this.restartForNextLevel();
     }
 
     private playPop(bubble: BubbleGO) {
@@ -1234,21 +1255,49 @@ export class GameScene extends Phaser.Scene {
         if (match.length >= BUBBLES.minMatchCount) {
             this.audio.play("sfx_pop");
             this.effectManager.shake(0.004, 120);
+
+            // --- COMBO LOGIC ---
+            this.comboCount++;
+
+            // Calculate base score per bubble with combo multiplier
+            // Formula: 10 * (1 + comboCount * 0.5)
+            const baseScore = 10;
+            const multiplier = 1 + (this.comboCount * 0.5);
+            const scorePerBubble = Math.floor(baseScore * multiplier);
+            const totalMatchScore = match.length * scorePerBubble;
+
+            this.addScore(totalMatchScore, placed.x, placed.y);
+
+            // Combo Feedback
+            if (this.comboCount >= 2) {
+                const comboText = `COMBO x${this.comboCount}!`;
+                let color = 0xFFFFFF;
+                if (this.comboCount >= 3) color = 0xFFD700; // Gold
+                if (this.comboCount >= 5) color = 0xFF4500; // Orange Red
+
+                this.effectManager.spawnFloatingText(placed.x, placed.y - 40, comboText, color);
+            }
+            // -------------------
+
             for (const b of match) {
                 this.occupied.delete(this.key(b.cellR, b.cellC));
                 this.playPop(b);
             }
-            this.addScore(match.length * 10, placed.x, placed.y);
 
             const dropped = this.removeFloatingBubbles();
             if (dropped > 0) {
-                this.addScore(dropped * 5);
+                // Secondary bonus for drops (optional: could also have combo multiplier?)
+                // Let's keep drops simple or apply small multiplier
+                this.addScore(dropped * 20);
             }
 
             this.ensureNextColorsValid();
 
             // Scroll reveal: check if we should reveal more rows from top
             this.checkAndRevealRows();
+        } else {
+            // No match - Reset Combo
+            this.comboCount = 0;
         }
 
         // Win condition (minimal): if no bubbles remain, next level
@@ -1449,8 +1498,12 @@ export class GameScene extends Phaser.Scene {
         this.shotsLeft = this.computeShotsForLevel(this.level);
         this.spawnInitialBubbles();
         this.ensureNextColorsValid();
-        this.hud?.setLevel(this.level);
-        this.hud?.setShots(this.shotsLeft);
+
+        // Recreation of HUD is safest way to reset stars and target text
+        if (this.hud) {
+            this.hud.destroy();
+        }
+        this.drawHUD();
     }
 
     private computeShotsForLevel(level: number): number {

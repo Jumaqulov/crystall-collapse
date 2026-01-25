@@ -9,174 +9,301 @@ export type HUDInitData = {
     score: number;
     shots: number;
     targetScore: number;
+    startScore?: number;
 };
 
 export class HUD extends Phaser.GameObjects.Container {
     private bg: Phaser.GameObjects.Graphics;
 
-    // Progress Bar elementlari
-    private barBg: Phaser.GameObjects.Rectangle;
-    private barFill: Phaser.GameObjects.Rectangle;
-    private barMask: Phaser.GameObjects.Graphics;
-    private stars: Phaser.GameObjects.Image[] = [];
+    // Progress Bar Elements
+    private barContainer: Phaser.GameObjects.Container;
+    private barBg: Phaser.GameObjects.Graphics;
+    private barFill: Phaser.GameObjects.Graphics;
+    private barShine: Phaser.GameObjects.Graphics;
+    private stars: Array<{
+        base: Phaser.GameObjects.Image;
+        fill: Phaser.GameObjects.Image;
+        glow: Phaser.GameObjects.Image;
+        unlocked: boolean
+    }> = [];
 
     private levelText: Phaser.GameObjects.Text;
     private scoreText: Phaser.GameObjects.Text;
-    private shotsText: Phaser.GameObjects.Text;
+    private targetText: Phaser.GameObjects.Text;
 
+    // Logic
     private currentScore = 0;
     private targetScore = 1000;
-    private barWidth = 0;
+    private startScore = 0;
+    private barWidth = 320;
+    private barHeight = 24;
+    private fillPercent = 0; // 0 to 1
 
     constructor(scene: Phaser.Scene, data: HUDInitData) {
         super(scene, 0, 0);
 
         this.currentScore = data.score;
         this.targetScore = data.targetScore || 1000;
+        this.startScore = data.startScore || 0;
 
-        const barH = 100;
-        const barMargin = 14;
-        const barX = barMargin;
-        const barY = 8;
-        const barW = GAME.width - barMargin * 2;
+        const barW = GAME.width - 24;
+        const barH = 50; // Increased Height for glass panel
+        const hudX = 12;
+        const hudY = 12;
 
-        // 1. Asosiy Panel (Fon)
+        // --- 1. GLASS PANEL BACKGROUND ---
         this.bg = scene.add.graphics();
-        this.bg.fillStyle(0x020617, 0.9); // Juda to'q ko'k (Slate-950)
-        this.bg.fillRoundedRect(barX, barY, barW, barH - 10, 16);
-        this.bg.lineStyle(2, 0x38BDF8, 0.8); // Yorqin havorang chiziq
-        this.bg.strokeRoundedRect(barX, barY, barW, barH - 10, 16);
+        // Semi-transparent panel
+        this.bg.fillStyle(hexTo0x(Colors.ui.panel), 0.75);
+        this.bg.fillRoundedRect(hudX, hudY, barW, barH * 1.8, 16);
 
-        // 2. PROGRESS BAR (O'rtada)
-        const pbW = 340; // Wider
-        const pbH = 32;  // Taller
-        const pbX = GAME.width / 2 - pbW / 2;
-        const pbY = barY + 42;
-        this.barWidth = pbW;
+        // Rim Highlight (Top/Left)
+        this.bg.lineStyle(2, 0xFFFFFF, 0.4);
+        this.bg.strokeRoundedRect(hudX, hudY, barW, barH * 1.8, 16);
 
-        // Bar orqasi (qora) - barBg ga biriktiramiz
-        // Kontrastni oshirish uchun qora fon (0x000000) va oq ramka (0xFFFFFF)
-        this.barBg = scene.add.rectangle(GAME.width / 2, pbY + pbH / 2, pbW, pbH, 0x000000).setDepth(1);
-        this.barBg.setStrokeStyle(2, 0xFFFFFF);
+        // Gloss (Diagonal)
+        this.bg.fillStyle(0xFFFFFF, 0.05);
+        this.bg.fillRoundedRect(hudX, hudY, barW, barH * 0.8, { tl: 16, tr: 16, bl: 0, br: 0 });
 
-        // Bar to'lishi (Sariq)
-        this.barFill = scene.add.rectangle(pbX, pbY, 0, pbH, 0xFACC15).setOrigin(0, 0).setDepth(2);
+        this.add(this.bg);
 
-        // Mask (Bar to'lganda chetidan chiqib ketmasligi uchun)
-        this.barMask = scene.add.graphics();
-        this.barMask.fillStyle(0xffffff);
-        this.barMask.fillRoundedRect(pbX, pbY, pbW, pbH, 12); // Rounder corners
-        const mask = this.barMask.createGeometryMask();
+        // --- 2. JUICY PROGRESS BAR ---
+        const pbX = GAME.width / 2 - this.barWidth / 2;
+        const pbY = hudY + 50;
+
+        this.barContainer = scene.add.container(0, 0);
+
+        // Bar Background (Dark Slot)
+        this.barBg = scene.add.graphics();
+        this.barBg.fillStyle(0x000000, 0.5);
+        this.barBg.fillRoundedRect(pbX, pbY, this.barWidth, this.barHeight, 12);
+        this.barBg.lineStyle(2, 0xFFFFFF, 0.2);
+        this.barBg.strokeRoundedRect(pbX, pbY, this.barWidth, this.barHeight, 12);
+
+        // Bar Fill (Initial empty)
+        this.barFill = scene.add.graphics();
+        // Bar Shine (Overlay)
+        this.barShine = scene.add.graphics();
+
+        // MASK (To fix "crooked" filling at small widths)
+        const maskShape = scene.make.graphics();
+        maskShape.fillStyle(0xffffff);
+        maskShape.fillRoundedRect(pbX, pbY, this.barWidth, this.barHeight, 12);
+        const mask = maskShape.createGeometryMask();
+
         this.barFill.setMask(mask);
-        this.barBg.setMask(mask);
+        this.barShine.setMask(mask);
 
-        // Yulduzchalar (3 ta)
-        const starPositions = [0.33, 0.66, 0.98]; // 1.0 would be partially cut off
-        starPositions.forEach((pos) => {
-            const sx = pbX + pbW * pos;
-            const sy = pbY + pbH / 2;
+        this.barContainer.add([this.barBg, this.barFill, this.barShine]);
+        this.add(this.barContainer);
 
-            // Bo'sh yulduz (foni)
-            // Stroke effekti berish uchun bir oz kattaroq qora yulduz orqasiga
-            const starShadow = scene.add.image(sx, sy + 2, getPhosphorKey("starFilled"));
-            starShadow.setDisplaySize(42, 42);
-            starShadow.setTint(0x000000);
-            starShadow.setAlpha(0.5);
-            starShadow.setDepth(3);
+        // --- 3. STARS (Milestones) ---
+        const milestones = [0.33, 0.66, 1.0];
+        milestones.forEach((pct, idx) => {
+            const starX = pbX + this.barWidth * pct;
+            const starY = pbY + this.barHeight / 2;
 
-            const starBg = scene.add.image(sx, sy, getPhosphorKey("starFilled"));
-            starBg.setDisplaySize(36, 36); // Kattaroq
-            starBg.setTint(0x475569); // Slate-600
-            starBg.setDepth(4);
+            // Base (Grey/Silhouette)
+            const base = scene.add.image(starX, starY, getPhosphorKey("starFilled"));
+            base.setDisplaySize(32, 32);
+            base.setTint(0x555555); // Grey
 
-            // Yonadigan yulduz (ustida)
-            const star = scene.add.image(sx, sy, getPhosphorKey("starFilled"));
-            star.setDisplaySize(36, 36);
-            star.setTint(0xFDE047); // Yellow-300 (Yorqinroq)
-            star.setDepth(5);
-            star.setVisible(false); // Boshida ko'rinmaydi
+            // Fill (Gold - Hidden initially)
+            const fill = scene.add.image(starX, starY, getPhosphorKey("starFilled"));
+            fill.setDisplaySize(32, 32);
+            fill.setTint(hexTo0x(Colors.ui.reward)); // Gold
+            fill.setVisible(false);
 
-            // Glow effekti (yonib turganda)
-            const glow = scene.add.image(sx, sy, getPhosphorKey("starFilled"));
+            // Glow (Bloom - Hidden)
+            const glow = scene.add.image(starX, starY, getPhosphorKey("starFilled"));
             glow.setDisplaySize(48, 48);
             glow.setTint(0xFFFFFF);
-            glow.setAlpha(0.4);
+            glow.setAlpha(0.6);
             glow.setBlendMode(Phaser.BlendModes.ADD);
-            glow.setDepth(6);
             glow.setVisible(false);
 
-            // Star objectiga glow ni ham biriktirib qo'yamiz, keyin updateProgress da ishlatamiz
-            (star as any).glow = glow;
-
-            this.stars.push(star);
-            this.add([starShadow, starBg, star, glow]);
+            this.stars.push({ base, fill, glow, unlocked: false });
+            this.add([base, fill, glow]);
         });
 
-        // 3. TEXTLAR
-        const textStyle = { fontFamily: "Arial", fontSize: "20px", color: "#E2E8F0", fontStyle: "bold" };
+        // --- 4. TEXT LABELS ---
+        const textStyle = {
+            fontFamily: "Arial",
+            fontSize: "18px",
+            color: Colors.ui.textPrimary,
+            fontStyle: "bold",
+            shadow: { offsetX: 0, offsetY: 1, color: "black", blur: 2, fill: true }
+        };
 
-        this.levelText = scene.add.text(barX + 20, barY + 20, `LEVEL ${data.level}`, textStyle);
+        this.levelText = scene.add.text(hudX + 16, hudY + 14, `LEVEL ${data.level}`, textStyle);
 
-        // Score (O'ng tarafda)
-        this.scoreText = scene.add.text(barX + barW - 20, barY + 20, `${data.score}`, { ...textStyle, color: "#FCD34D" }).setOrigin(1, 0);
+        this.scoreText = scene.add.text(GAME.width - 24, hudY + 14, `${this.currentScore}`, {
+            ...textStyle,
+            color: Colors.ui.reward,
+            fontSize: "22px"
+        }).setOrigin(1, 0);
 
-        // Shots (Pastda markazda yoki chapda)
-        this.shotsText = scene.add.text(barX + 20, barY + 50, `${data.shots} Shots`, { ...textStyle, fontSize: "16px", color: "#F87171" });
+        this.targetText = scene.add.text(GAME.width / 2, hudY + 14, `TARGET: ${this.targetScore}`, {
+            ...textStyle, fontSize: "14px", color: Colors.ui.textSecondary
+        }).setOrigin(0.5, 0);
 
-        this.add([this.bg, this.barBg, this.barFill, this.levelText, this.scoreText, this.shotsText]);
+        this.add([this.levelText, this.scoreText, this.targetText]);
+
         scene.add.existing(this);
-
-        // Birinchi marta yangilash
-        this.updateProgress();
+        this.updateBarVisuals(0); // Init
     }
-
-    // --- Methodlar (GameScene chaqiradigan) ---
 
     setLevel(level: number) {
         this.levelText.setText(`LEVEL ${level}`);
     }
 
-    setScore(score: number) {
-        this.currentScore = score;
-        this.scoreText.setText(`${score}`);
-        this.updateProgress();
-    }
-
     setShots(shots: number) {
-        this.shotsText.setText(`${shots} Shots`);
+        // Optional: Update shots if we decide to show it in this HUD
     }
 
-    private updateProgress() {
-        // Progressni hisoblash (0 dan 1 gacha)
-        const pct = Phaser.Math.Clamp(this.currentScore / this.targetScore, 0, 1);
 
-        // Barni cho'zish
-        this.barFill.width = this.barWidth * pct;
 
-        // Yulduzchalarni yoqish
-        const starThresholds = [0.33, 0.66, 0.99];
-        this.stars.forEach((star, idx) => {
-            const threshold = starThresholds[idx];
-            if (threshold !== undefined && pct >= threshold) {
-                if (!star.visible) {
-                    star.setVisible(true);
-                    star.setScale(2.5);
-                    this.scene.tweens.add({ targets: star, scale: 1, duration: 400, ease: 'Elastic.Out' });
+    setScore(score: number) {
+        const oldScore = this.currentScore;
+        this.currentScore = score;
+        this.scoreText.setText(`${Math.floor(this.currentScore)}`);
 
-                    const glow = (star as any).glow;
-                    if (glow) {
-                        glow.setVisible(true);
-                        this.scene.tweens.add({
-                            targets: glow,
-                            alpha: { from: 0.6, to: 0.2 },
-                            scale: { from: 1, to: 1.2 },
-                            yoyo: true,
-                            repeat: -1,
-                            duration: 800
-                        });
-                    }
+        // Calculate Pct relative to level range
+        // Range: [startScore, targetScore]
+        const range = Math.max(1, this.targetScore - this.startScore);
+
+        const startPct = Phaser.Math.Clamp((oldScore - this.startScore) / range, 0, 1);
+        const endPct = Phaser.Math.Clamp((this.currentScore - this.startScore) / range, 0, 1);
+
+        this.scene.tweens.addCounter({
+            from: startPct,
+            to: endPct,
+            duration: 600,
+            ease: "Cubic.Out",
+            onUpdate: (tween) => {
+                // SAFETY CHECK: If HUD or Scene is destroyed, stop updating
+                if (!this.scene || !this.barFill) {
+                    tween.stop();
+                    return;
                 }
+                const val = tween.getValue() || 0;
+                this.updateBarVisuals(val);
+                this.checkStarUnlock(val);
             }
+        });
+    }
+
+    private updateBarVisuals(pct: number) {
+        this.fillPercent = pct;
+        const pbX = GAME.width / 2 - this.barWidth / 2;
+        const pbY = 12 + 50; // CORRECT: hudY (12) + 50 = 62
+
+        const w = this.barWidth * pct;
+        // Even if w is small, fillRect works fine. The Mask handles the rounded corners of the container.
+        if (w <= 0) {
+            this.barFill.clear();
+            this.barShine.clear();
+            return;
+        }
+
+        this.barFill.clear();
+
+        // GREEN Gradient (Emerald/Success)
+        // Base: Darker Green
+        this.barFill.fillStyle(0x10B981, 1);
+        this.barFill.fillRect(pbX, pbY, w, this.barHeight);
+
+        // Top Highlight: Lighter Green
+        this.barFill.fillStyle(0x34D399, 1);
+        this.barFill.fillRect(pbX, pbY, w, this.barHeight * 0.5);
+
+        // Shine on bar (Gloss) - cleaner
+        this.barShine.clear();
+        this.barShine.fillStyle(0xFFFFFF, 0.3);
+        this.barShine.fillRect(pbX, pbY, w, this.barHeight * 0.4);
+    }
+
+    private checkStarUnlock(pct: number) {
+        const thresholds = [0.33, 0.66, 1.0];
+
+        thresholds.forEach((thresh, idx) => {
+            const star = this.stars[idx];
+            if (star && pct >= thresh && !star.unlocked) {
+                this.unlockStar(idx);
+            }
+        });
+    }
+
+    private unlockStar(idx: number) {
+        const star = this.stars[idx];
+        if (!star) return;
+
+        star.unlocked = true;
+
+        star.fill.setVisible(true);
+        star.fill.setScale(0);
+
+        // 32px is the desired display size, native is 256px
+        // Correct scale factor ~0.125
+        const targetScale = 32 / 256;
+
+        // Pop Animation
+        this.scene.tweens.add({
+            targets: star.fill,
+            scale: targetScale * 1.5,
+            duration: 300,
+            ease: "Back.Out",
+            onComplete: () => {
+                this.scene.tweens.add({
+                    targets: star.fill,
+                    scale: targetScale,
+                    duration: 200,
+                    ease: "Quad.Out"
+                });
+            }
+        });
+
+        // Glow flash
+        star.glow.setVisible(true);
+        star.glow.setAlpha(1);
+        star.glow.setScale(0.5);
+
+        this.scene.tweens.add({
+            targets: star.glow,
+            scale: 2,
+            alpha: 0,
+            duration: 600,
+            ease: "Quad.Out",
+            onComplete: () => {
+                star.glow.setVisible(false);
+            }
+        });
+
+        // Particles
+        this.spawnStarParticles(star.fill.x, star.fill.y);
+    }
+
+    private spawnStarParticles(x: number, y: number) {
+        // Need a texture for particles. 'starFilled' is a Base64 texture, which works for particles too.
+        const emitter = this.scene.add.particles(0, 0, getPhosphorKey("starFilled"), {
+            x: x,
+            y: y,
+            speed: { min: 50, max: 150 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.3, end: 0 },
+            lifespan: 600,
+            gravityY: 200,
+            quantity: 10,
+            emitting: false
+        });
+
+        // Manual burst? .explode() is Phaser 3.60+. If older, emitParticle.
+        // Assuming Phaser 3.60+ based on context.
+        emitter.explode(10);
+
+        // Auto cleanup
+        this.scene.time.delayedCall(1000, () => {
+            emitter.destroy();
         });
     }
 }

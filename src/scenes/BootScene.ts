@@ -3,6 +3,7 @@ import Phaser from "phaser";
 import { Colors, hexTo0x } from "../config/colors";
 import { GAME, DEBUG } from "../config/constants";
 import { YandexSDK } from "../services/YandexSDK";
+import { ensurePhosphorTextures } from "../ui/phosphor";
 
 export class BootScene extends Phaser.Scene {
     constructor() {
@@ -27,6 +28,9 @@ export class BootScene extends Phaser.Scene {
     async create() {
         // Solid background immediately
         this.cameras.main.setBackgroundColor(hexTo0x(Colors.ui.background));
+
+        // Generate icon textures
+        ensurePhosphorTextures(this);
 
         // Ensure consistent scaling on resize
         this.setupScaleHandlers();
